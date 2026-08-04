@@ -1,0 +1,19 @@
+[package]
+name = "html-visual-editor"
+version = "1.0.0"
+description = "开发者本地桌面工具：像 Word 一样可视化编辑 HTML"
+authors = ["you"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]
