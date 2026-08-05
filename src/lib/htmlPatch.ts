@@ -26,6 +26,9 @@ export interface HtmlEdit {
   outerHtml?: string; // 新的 outerHTML（edit / set-img 用）
   remove?: boolean; // 删除该节点
   appendHtml?: string; // 在节点内部末尾追加
+  // 插入新元素：以 path 锚点元素为参照
+  insertHtml?: string; // 要插入的 HTML 字符串
+  insertPosition?: "before" | "after" | "prepend" | "append";
 }
 
 interface Range {
@@ -151,27 +154,51 @@ export function findNodeRange(html: string, path: string): Range | null {
   return null;
 }
 
-// 精准回填：按 path 在源码中定位节点区间，替换/删除/追加。
+// 精准回填：按 path 在源码中定位节点区间，替换/删除/追加/插入。
+// 所有 edit 先在【原始 HTML】上计算绝对生效位置（at），
+// 再按 at 从小到大应用，并用偏移补偿（delta）保证嵌套/重叠场景下的正确性。
 export function applyEdits(originalHtml: string, edits: HtmlEdit[]): string {
   if (edits.length === 0) return originalHtml;
-  let result = originalHtml;
+
+  interface Op {
+    at: number; // 在原始 HTML 中的生效起点偏移
+    removeLen: number; // 需要删除的字节数（0 表示纯插入）
+    insert: string; // 插入的内容
+  }
+
+  const ops: Op[] = [];
   for (const edit of edits) {
-    const range = findNodeRange(result, edit.path);
+    const range = findNodeRange(originalHtml, edit.path);
     if (!range) continue;
-    let replacement = result.slice(range.start, range.end);
     if (edit.remove) {
-      replacement = "";
+      ops.push({ at: range.start, removeLen: range.end - range.start, insert: "" });
     } else if (edit.outerHtml !== undefined) {
-      replacement = edit.outerHtml;
+      ops.push({ at: range.start, removeLen: range.end - range.start, insert: edit.outerHtml });
     } else if (edit.appendHtml !== undefined) {
-      const inner = result.slice(range.innerStart, range.innerEnd) + edit.appendHtml;
-      replacement =
-        result.slice(range.start, range.innerStart) +
-        inner +
-        result.slice(range.innerEnd, range.end);
+      ops.push({ at: range.innerEnd, removeLen: 0, insert: edit.appendHtml });
+    } else if (edit.insertHtml !== undefined && edit.insertPosition) {
+      let at = range.start;
+      if (edit.insertPosition === "after") at = range.end;
+      else if (edit.insertPosition === "prepend") at = range.innerStart;
+      else if (edit.insertPosition === "append") at = range.innerEnd;
+      ops.push({ at, removeLen: 0, insert: edit.insertHtml });
     }
-    result =
-      result.slice(0, range.start) + replacement + result.slice(range.end);
+  }
+
+  // 按原始偏移从小到大（从外到内）应用；偏移相同则删除/替换优先于插入
+  ops.sort((a, b) => {
+    if (a.at !== b.at) return a.at - b.at;
+    const wa = a.removeLen > 0 ? 0 : 1;
+    const wb = b.removeLen > 0 ? 0 : 1;
+    return wa - wb;
+  });
+
+  let result = originalHtml;
+  let delta = 0; // 已应用 edit 导致的偏移累计变化
+  for (const op of ops) {
+    const pos = op.at + delta; // 补偿后的实际位置
+    result = result.slice(0, pos) + op.insert + result.slice(pos + op.removeLen);
+    delta += op.insert.length - op.removeLen;
   }
   return result;
 }

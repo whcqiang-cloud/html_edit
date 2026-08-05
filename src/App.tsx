@@ -5,10 +5,12 @@ import { applyEdits, getNodePath, HtmlEdit } from "./lib/htmlPatch";
 interface EditEntry {
   id: string;
   path: string;
-  kind: "text" | "image" | "delete" | "append";
+  kind: "text" | "image" | "delete" | "append" | "insert";
   label: string; // 人类可读描述
   edit: HtmlEdit;
   preview: string; // 改动摘要
+  // 插入操作的额外信息
+  insertPosition?: "before" | "after" | "prepend" | "append";
 }
 
 export default function App() {
@@ -20,6 +22,8 @@ export default function App() {
   const [edits, setEdits] = useState<EditEntry[]>([]);
   const [selected, setSelected] = useState<EditEntry | null>(null);
   const [editDraft, setEditDraft] = useState<string>("");
+  const [insertKind, setInsertKind] = useState<"text" | "image" | null>(null);
+  const [insertAlt, setInsertAlt] = useState<string>("");
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const dirtyRef = useRef(false);
 
@@ -35,6 +39,7 @@ export default function App() {
     path: string;
     text?: string;
     src?: string;
+    insertKind?: string;
     outerHtml: string;
   }) => {
     if (detail.type === "delete") {
@@ -49,6 +54,21 @@ export default function App() {
       setEdits((prev) => [...prev, entry]);
       dirtyRef.current = true;
       setToast("已标记删除，保存后生效");
+      return;
+    }
+    if (detail.type === "insert") {
+      setSelected({
+        id: "",
+        path: detail.path,
+        kind: "insert",
+        label: detail.insertKind === "image" ? "插入图片" : "插入文字",
+        edit: { path: detail.path, outerHtml: detail.outerHtml },
+        preview: "",
+        insertPosition: undefined,
+      });
+      setInsertKind(detail.insertKind === "image" ? "image" : "text");
+      setEditDraft("");
+      setInsertAlt("");
       return;
     }
     setSelected({
@@ -99,6 +119,10 @@ export default function App() {
         font-size:12px;cursor:pointer}
       .hve-bar button.del{background:#be123c}
       .hve-bar button.ghost{background:rgba(255,255,255,.15)}
+      .hve-menu{position:absolute;top:42px;left:0;z-index:99999;background:#1f2329;color:#fff;
+        border-radius:8px;padding:4px;display:none;flex-direction:column;box-shadow:0 6px 20px rgba(0,0,0,.3)}
+      .hve-menu-item{padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;white-space:nowrap}
+      .hve-menu-item:hover{background:#2f6bff}
     `;
     doc.head.appendChild(style);
 
@@ -158,12 +182,45 @@ export default function App() {
           outerHtml: el.outerHTML,
         });
       };
+      // 插入下拉
+      const insertBtn = doc.createElement("button");
+      insertBtn.textContent = "插入 ▾";
+      insertBtn.className = "ghost";
+      const menu = doc.createElement("div");
+      menu.className = "hve-menu";
+      menu.style.display = "none";
+      const insertItems = [
+        { label: "插入文字", action: "text" },
+        { label: "插入图片", action: "image" },
+      ];
+      insertItems.forEach((item) => {
+        const mi = doc.createElement("div");
+        mi.className = "hve-menu-item";
+        mi.textContent = item.label;
+        mi.onclick = (e2) => {
+          e2.stopPropagation();
+          menu.style.display = "none";
+          (win as any).__hve_callback?.({
+            type: "insert",
+            insertKind: item.action,
+            path: getNodePath(el),
+            outerHtml: el.outerHTML,
+          });
+        };
+        menu.appendChild(mi);
+      });
+      insertBtn.onclick = (e2) => {
+        e2.stopPropagation();
+        menu.style.display = menu.style.display === "none" ? "flex" : "none";
+      };
       bar.appendChild(editBtn);
+      bar.appendChild(insertBtn);
       bar.appendChild(delBtn);
+      bar.appendChild(menu);
       bar.style.display = "flex";
       const x = Math.min(
         evt.clientX,
-        (doc.defaultView as any).innerWidth - 240
+        (doc.defaultView as any).innerWidth - 280
       );
       bar.style.left = x + "px";
       bar.style.top = evt.clientY + 12 + "px";
@@ -261,6 +318,68 @@ export default function App() {
   function removeEdit(id: string) {
     setEdits((prev) => prev.filter((e) => e.id !== id));
     dirtyRef.current = edits.length > 1;
+  }
+
+  // 确认插入操作
+  function confirmInsert(position: "before" | "after" | "prepend" | "append") {
+    if (!selected || !insertKind) return;
+    let insertHtml = "";
+    let preview = "";
+    if (insertKind === "text") {
+      const content = editDraft.trim();
+      if (!content) {
+        setToast("请输入文字内容");
+        return;
+      }
+      insertHtml = "<p>" + escapeHtml(content) + "</p>";
+      preview = "段落：\"" + content.slice(0, 24) + "\"";
+    } else {
+      const url = editDraft.trim();
+      if (!url) {
+        setToast("请输入图片 URL");
+        return;
+      }
+      const alt = insertAlt ? ` alt="${escapeHtml(insertAlt)}"` : "";
+      insertHtml = `<img src="${escapeHtml(url)}"${alt} />`;
+      preview = "图片：" + url.slice(0, 40);
+    }
+    const posLabel =
+      position === "before"
+        ? "前面"
+        : position === "after"
+        ? "后面"
+        : position === "prepend"
+        ? "开头"
+        : "末尾";
+    const entry: EditEntry = {
+      id: "e" + Date.now() + Math.random().toString(36).slice(2, 6),
+      path: selected.path,
+      kind: "insert",
+      label: insertKind === "image" ? "插入图片" : "插入文字",
+      edit: {
+        path: selected.path,
+        insertHtml,
+        insertPosition: position,
+      },
+      preview: `在锚点${posLabel} · ${preview}`,
+      insertPosition: position,
+    };
+    setEdits((prev) => [...prev, entry]);
+    dirtyRef.current = true;
+    setSelected(null);
+    setInsertKind(null);
+    setEditDraft("");
+    setInsertAlt("");
+    setToast("已记录插入，保存后生效");
+  }
+
+  // HTML 转义，避免插入内容破坏源码结构
+  function escapeHtml(s: string): string {
+    return s
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
   }
 
   const handleOpen = async () => {
@@ -362,7 +481,7 @@ export default function App() {
             )}
           </div>
 
-          {selected && (
+          {selected && selected.kind !== "insert" && (
             <div className="edit-modal">
               <div className="edit-modal-title">
                 {selected.kind === "image" ? "替换图片地址" : "编辑文字内容"}
@@ -398,6 +517,65 @@ export default function App() {
             </div>
           )}
 
+          {selected && selected.kind === "insert" && (
+            <div className="edit-modal">
+              <div className="edit-modal-title">
+                {insertKind === "image" ? "插入图片" : "插入文字"}
+              </div>
+              {insertKind === "image" ? (
+                <>
+                  <input
+                    className="edit-input"
+                    value={editDraft}
+                    onChange={(e) => setEditDraft(e.target.value)}
+                    placeholder="图片 URL（https://...）"
+                  />
+                  <input
+                    className="edit-input"
+                    style={{ marginTop: 8 }}
+                    value={insertAlt}
+                    onChange={(e) => setInsertAlt(e.target.value)}
+                    placeholder="替代文本 alt（可选）"
+                  />
+                </>
+              ) : (
+                <textarea
+                  className="edit-textarea"
+                  value={editDraft}
+                  onChange={(e) => setEditDraft(e.target.value)}
+                  rows={5}
+                  placeholder="输入要插入的文字内容"
+                />
+              )}
+              <div className="edit-modal-subtitle">选择插入位置：</div>
+              <div className="edit-pos-btns">
+                <button className="btn" onClick={() => confirmInsert("before")}>
+                  前面
+                </button>
+                <button className="btn" onClick={() => confirmInsert("after")}>
+                  后面
+                </button>
+                <button className="btn" onClick={() => confirmInsert("prepend")}>
+                  开头
+                </button>
+                <button className="btn" onClick={() => confirmInsert("append")}>
+                  末尾
+                </button>
+              </div>
+              <div className="edit-modal-actions">
+                <button
+                  className="btn"
+                  onClick={() => {
+                    setSelected(null);
+                    setInsertKind(null);
+                  }}
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="edits-list">
             {edits.length === 0 && !selected && (
               <div className="empty-hint">
@@ -410,7 +588,10 @@ export default function App() {
             )}
             {edits.map((e) => (
               <div className="edit-item" key={e.id}>
-                <div className="edit-item-kind">{e.label}</div>
+                <div className="edit-item-kind">
+                  {e.kind === "insert" ? "➕ " : ""}
+                  {e.label}
+                </div>
                 <div className="edit-item-preview">{e.preview}</div>
                 <button
                   className="edit-item-del"

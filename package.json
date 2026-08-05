@@ -8,7 +8,10 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "test:patch": "node scripts/test_patch.mjs",
+    "test:insert": "node scripts/test_insert.mjs",
+    "test:e2e-insert": "node scripts/test_e2e_insert.mjs"
   },
   "dependencies": {
     "@codemirror/commands": "^6.6.0",
@@ -28,6 +31,8 @@
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
+    "esbuild": "^0.28.1",
+    "jsdom": "^30.0.1",
     "typescript": "^5.6.3",
     "vite": "^5.4.11"
   }
