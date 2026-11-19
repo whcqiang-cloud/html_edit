@@ -11,7 +11,13 @@
     "tauri": "tauri",
     "test:patch": "node scripts/test_patch.mjs",
     "test:insert": "node scripts/test_insert.mjs",
-    "test:e2e-insert": "node scripts/test_e2e_insert.mjs"
+    "test:e2e-insert": "node scripts/test_e2e_insert.mjs",
+    "test:edit-core": "node scripts/test_edit_core.mjs",
+    "test:config": "node scripts/test_config.mjs",
+    "test:agent": "node scripts/test_agent_edit.mjs",
+    "test:bridge": "node scripts/test_iframe_bridge.mjs",
+    "test:block": "node scripts/test_block_rearrange.mjs",
+    "test:all": "node scripts/test_patch.mjs && node scripts/test_insert.mjs && node scripts/test_e2e_insert.mjs && node scripts/test_edit_core.mjs && node scripts/test_config.mjs && node scripts/test_agent_edit.mjs && node scripts/test_iframe_bridge.mjs && node scripts/test_block_rearrange.mjs"
   },
   "dependencies": {
     "@codemirror/commands": "^6.6.0",

@@ -34,13 +34,14 @@ pnpm-debug.log*
 .env.*.local
 
 # ============================================================
-# Editor / IDE
+# Editor / IDE / local tools
 # ============================================================
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+.codebuddy/
 
 # ============================================================
 # OS generated files
@@ -54,8 +55,14 @@ desktop.ini
 # ============================================================
 *.tmp
 *.bak
+*.bak.*
 *.cache
 .temp/
+
+# Agent 修改临时工作目录与残留备份
+hve-agent-work-*/
+*.hve-backup-*.html
+*.broken-*.html
 
 # ============================================================
 # Test / coverage
@@ -63,22 +70,21 @@ desktop.ini
 coverage/
 *.lcov
 
-# ============================================================
-# Project-specific test & debug files
-# ============================================================
+# Playwright CLI test artifacts
+.playwright-cli/
 e2e_debug.png
 e2e_initial.yaml
 e2e.yaml
+
+# ============================================================
+# Legacy scratch artifacts (kept out of version control)
+# ============================================================
 BOM中台功能介绍*.html
 
-# Playwright CLI test artifacts
-.playwright-cli/
+# 本地测试 / 样例 HTML（不纳入版本控制）
+/产品研发域_MCU本体三层落地评估_产品基座数据.html
+/运营监控视角_备份_202ddd60915_094504.html
+/运营监控视角_副本5.html
 
-# Test scripts (not part of core project)
-scripts/_click_test.html
-scripts/auto_e2e.html
-scripts/e2e_simple.html
-scripts/e2e_test.html
-scripts/iframe_content.html
-scripts/test_e2e.mjs
-scripts/test_patch.mjs
+# 历史 GUI 原型（旧架构，仅供设计参考，不纳入版本控制）
+/docs/GUI界面原型.html

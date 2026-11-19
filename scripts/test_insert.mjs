@@ -101,4 +101,24 @@ const out7Doc = new JSDOM(out7).window.document;
 check("混合：p.second 被删除", !out7Doc.querySelector("p.second"));
 check("混合：插入的新段落存在", [...out7Doc.querySelectorAll("p")].some((p) => p.textContent === "NEW"));
 
+// ---- 测试8：在列表中间某条 li 之后插入图片，必须紧邻该 li，不能跑到整个 ul 后面 ----
+{
+  const listHtml = `<!DOCTYPE html><html><body><ul class="rules">
+  <li id="a">第一条</li>
+  <li id="b">注塑实例口径：设计实例</li>
+  <li id="c">第三条</li>
+</ul><p id="tail">页尾</p></body></html>`;
+  const ld = new JSDOM(listHtml).window.document;
+  const liBPath = getNodePath(ld.getElementById("b"));
+  const out = applyEdits(listHtml, [
+    { path: liBPath, insertHtml: '<img src="data:image/png;base64,AAA">', insertPosition: "after" },
+  ]);
+  const od = new JSDOM(out).window.document;
+  const ul = od.querySelector("ul.rules");
+  const kids = [...ul.children].map((k) => k.id || k.tagName.toLowerCase());
+  check("按选中位置插入：图片紧邻所选 li 之后", kids.join(",") === "a,b,img,c");
+  check("按选中位置插入：图片在 ul 内，没跑到列表后面", od.querySelector("ul.rules img") !== null && od.querySelector("img") === od.querySelector("ul.rules img"));
+  check("按选中位置插入：页尾仍在 ul 之后", out.indexOf("</ul>") < out.indexOf('id="tail"'));
+}
+
 console.log("\n插入功能测试完成。");
